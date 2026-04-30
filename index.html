@@ -1395,7 +1395,7 @@ const SHEETS_SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const TICKETS_SHEET = 'Tickets';
 let googleAccessToken = null;
 let tokenClient = null;
-const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyeYkvavMggWrpt-yXwHVz1pSNxCfX7qWGHNs0ZEqf5u8_x8U4EVOnkorVgmJzFjQDRnA/exec';
+const WEBAPP_URL = 'https://agviewer-proxy.rferreyra.workers.dev';
 
 function initGoogleAuth() {
   if (!window.google) { setTimeout(initGoogleAuth, 500); return; }
@@ -1443,33 +1443,17 @@ function googleSignOut() {
   document.getElementById('google-btn-wrap').style.display = '';
 }
 
-// ---- JSONP helper (evita CORS con Apps Script) ----
-function jsonpRequest(url) {
-  return new Promise((resolve, reject) => {
-    const cbName = 'jsonp_' + Date.now() + '_' + Math.floor(Math.random()*10000);
-    const script = document.createElement('script');
-    const timer = setTimeout(() => {
-      cleanup();
-      reject(new Error('JSONP timeout'));
-    }, 10000);
-
-    function cleanup() {
-      delete window[cbName];
-      script.remove();
-      clearTimeout(timer);
-    }
-
-    window[cbName] = (data) => { cleanup(); resolve(data); };
-    script.src = url + (url.includes('?') ? '&' : '?') + 'callback=' + cbName;
-    script.onerror = () => { cleanup(); reject(new Error('JSONP error')); };
-    document.head.appendChild(script);
-  });
+// ---- Llamada al proxy Cloudflare Worker (sin CORS) ----
+async function webAppGet(params) {
+  const url = WEBAPP_URL + '?' + new URLSearchParams(params).toString();
+  const r = await fetch(url);
+  return r.json();
 }
 
-// ---- LEER tickets desde Web App (JSONP) ----
+// ---- LEER tickets desde Web App ----
 async function loadTicketsFromSheets() {
   try {
-    const data = await jsonpRequest(WEBAPP_URL + '?action=list');
+    const data = await webAppGet({ action: 'list' });
     if (!data.ok || !data.tickets) return;
     tickets = data.tickets.map(t => ({
       ...t,
@@ -1485,7 +1469,7 @@ async function loadTicketsFromSheets() {
   } catch(e) { console.error('Error cargando tickets:', e); }
 }
 
-// ---- GUARDAR ticket via JSONP ----
+// ---- GUARDAR ticket via Web App ----
 async function saveTicketToSheets(t) {
   const dev = devices.find(d => d.device_id === t.device_id);
   const ticket = {
@@ -1496,12 +1480,12 @@ async function saveTicketToSheets(t) {
     api:    dev?.api    || t.api    || ''
   };
   const isUpdate = !!editingTicketId;
-  const url = WEBAPP_URL
-    + '?action=save'
-    + '&update=' + isUpdate
-    + '&data=' + encodeURIComponent(JSON.stringify(ticket));
   try {
-    const data = await jsonpRequest(url);
+    const data = await webAppGet({
+      action: 'save',
+      update: isUpdate,
+      data: JSON.stringify(ticket)
+    });
     if (data.ok) console.log('Ticket guardado en Sheets:', data.action, data.id);
     else console.error('Web App error:', data.error);
     setTimeout(loadTicketsFromSheets, 1500);
@@ -1511,8 +1495,7 @@ async function saveTicketToSheets(t) {
 async function autoResolveInSheets(ids) {
   if (!ids || ids.length === 0) return;
   try {
-    const url = WEBAPP_URL + '?action=auto_resolve&ids=' + encodeURIComponent(JSON.stringify(ids));
-    await jsonpRequest(url);
+    await webAppGet({ action: 'auto_resolve', ids: JSON.stringify(ids) });
   } catch(e) { console.error('Error auto-resolviendo en Sheets:', e); }
 }
 
