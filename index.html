@@ -37,10 +37,10 @@
   .tab-bar { display: flex; gap: 4px; border-bottom: 0.5px solid #e0e0e0; margin-bottom: 1rem; }
   .tab { font-size: 13px; padding: 8px 16px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-left: none; border-right: none; border-top: none; font-family: inherit; transition: color 0.15s; }
   .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; font-weight: 500; }
-  .device-row { display: grid; grid-template-columns: 1.8fr 0.9fr 0.9fr 0.9fr 1.5fr 0.9fr 0.9fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
+  .device-row { display: grid; grid-template-columns: 1.8fr 0.9fr 0.9fr 0.9fr 0.7fr 1.5fr 0.9fr 0.9fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
   .device-row:last-child { border-bottom: none; }
   .device-row-header { color: #888; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; }
-  .ticket-row { display: grid; grid-template-columns: 70px 2fr 1.1fr 1fr 1fr 1fr 0.8fr 0.8fr 0.8fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
+  .ticket-row { display: grid; grid-template-columns: 70px 2fr 1.1fr 1fr 1fr 1fr 1fr 0.7fr 0.8fr 0.8fr 0.8fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
   .ticket-row:last-child { border-bottom: none; }
   .ticket-row-header { color: #888; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; }
   .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100; align-items: center; justify-content: center; }
@@ -204,6 +204,7 @@
         <span>Tipo (api)</span>
         <span>Zona</span>
         <span>Usuario</span>
+        <span>Ubicación</span>
         <span>Última transmisión</span>
         <span>Tiempo offline</span>
         <span>Estado</span>
@@ -242,6 +243,8 @@
         <span>Asignado</span>
         <span>Prioridad</span>
         <span>Estado</span>
+        <span>Usuario</span>
+        <span>Ubicación</span>
         <span>Apertura</span>
         <span>Cierre</span>
         <span>Días</span>
@@ -813,6 +816,7 @@ function renderDevices() {
       <div><span class="badge badge-purple">${d.api||'—'}</span></div>
       <div style="font-size:12px; color:#555;">${d.zona||'—'}</div>
       <div style="font-size:12px; color:#555;">${d.users||'—'}</div>
+      <div>${mapsLink(d.latitude, d.longitude, d.name||d.serial)}</div>
       <div style="color:#666;">${formatTransmission(d.last_transmission)}</div>
       <div style="${dayColor} font-weight:500;">${formatDays(days)}</div>
       <div>${isDisabled ? '<span class="badge badge-gray">Inactivo</span>' : badge}</div>
@@ -840,6 +844,16 @@ function ticketAgeLabel(t) {
   if (d === 0) return 'Hoy';
   if (d === 1) return '1 día';
   return `${d}d`;
+}
+
+function mapsLink(lat, lng, name) {
+  if (!lat || !lng || isNaN(parseFloat(lat)) || isNaN(parseFloat(lng))) return '—';
+  const url = `https://www.google.com/maps?q=${lat},${lng}`;
+  return `<a href="${url}" target="_blank" rel="noopener" title="Ver ${name||''} en Google Maps"
+    style="display:inline-flex;align-items:center;gap:3px;color:#185FA5;font-size:11px;text-decoration:none;white-space:nowrap;">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+    </svg>Ver mapa</a>`;
 }
 
 function shortDate(iso) {
@@ -894,6 +908,8 @@ function renderTickets() {
         <span class="badge ${stBadge}">${t.status}</span>
         ${t.ticket_type==='reparacion'?'<br><span style="font-size:10px;color:#888;">Reparación</span>':''}
       </div>
+      <div style="font-size:11px; color:#555;">${dev?.users||'—'}</div>
+      <div>${dev ? mapsLink(dev.latitude, dev.longitude, dev.name||dev.serial) : '—'}</div>
       <div style="font-size:11px; color:#888;">${shortDate(t.created)}</div>
       <div style="font-size:11px; color:${t.status==='Resuelto'?'#3B6D11':'#aaa'};">${t.resolved_at ? shortDate(t.resolved_at) : (t.status==='Resuelto'?'—':'Abierto')}</div>
       <div style="font-size:12px; ${ageColor}" title="${ageTitle}">${t.status==='Resuelto'?'<span style=\'color:#3B6D11\'>'+ageLabel+'</span>':ageLabel}</div>
@@ -1147,6 +1163,7 @@ function viewTicket(id) {
       <tr><td>Usuario</td><td>${dev?.users||'—'}</td></tr>
       <tr><td>Timezone</td><td>${dev?.timezone||'—'}</td></tr>
       <tr><td>Coordenadas</td><td>${dev?.latitude&&dev?.longitude?dev.latitude+', '+dev.longitude:'—'}</td></tr>
+      <tr><td>Ubicación</td><td>${dev ? mapsLink(dev.latitude, dev.longitude, dev.name||dev.serial) : '—'}</td></tr>
       <tr><td>Última transmisión</td><td>${formatTransmission(dev?.last_transmission)}</td></tr>
       <tr><td>Tipo</td><td>${t.ticket_type==='reparacion'?'Reparación / otro':'Comunicación (offline)'}</td></tr>
       <tr><td>Prioridad</td><td><span class="badge ${prioBadge}">${t.priority}</span></td></tr>
