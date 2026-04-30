@@ -777,6 +777,9 @@ function renderDevices() {
   const search = document.getElementById('search-device').value.toLowerCase();
 
   // Subconjunto filtrado por apis y zonas seleccionadas (para métricas contextuales)
+  const showDisabled = document.getElementById('filter-show-disabled')?.checked;
+
+  // byApi: activos solamente (para métricas)
   const byApi = devices.filter(d =>
     !disabledDevices.has(d.device_id) &&
     (selectedApis.size === 0 || selectedApis.has(d.api)) &&
@@ -787,8 +790,12 @@ function renderDevices() {
   document.getElementById('m-offline').textContent = offlineByApi;
   document.getElementById('m-api-label').textContent = 'Sin comunicación';
 
-  const showDisabled = document.getElementById('filter-show-disabled')?.checked;
-  let list = byApi.filter(d => {
+  // list: para renderizar — incluye disabled si showDisabled está activo
+  const allFiltered = devices.filter(d =>
+    (selectedApis.size === 0 || selectedApis.has(d.api)) &&
+    (selectedZonas.size === 0 || selectedZonas.has(d.zona))
+  );
+  let list = allFiltered.filter(d => {
     const st = deviceStatus(d);
     const isDisabled = disabledDevices.has(d.device_id);
     if (isDisabled && !showDisabled) return false;
@@ -844,7 +851,7 @@ function renderDevices() {
       <div>${isDisabled ? '' : btn}</div>
       <div style="text-align:center;">
         <label class="toggle-switch" title="${isDisabled ? 'Activar dispositivo' : 'Desactivar dispositivo'}">
-          <input type="checkbox" ${checkedAttr} onchange="toggleDeviceDisabled('${d.device_id}')">
+          <input type="checkbox" ${checkedAttr} data-device-id="${d.device_id.replace(/"/g,'&quot;')}" onchange="toggleDeviceDisabled(this.dataset.deviceId)">
           <span class="toggle-slider"></span>
         </label>
       </div>
@@ -1388,13 +1395,12 @@ function makeMarkerIcon(color, hasTicket) {
 let disabledDevices = new Set();
 
 function loadDisabled() {
-  // Cargar desde localStorage como cache inicial
+  // Cargar desde localStorage como cache inicial rápida
   try {
     const d = localStorage.getItem('iot_disabled');
     if (d) disabledDevices = new Set(JSON.parse(d));
   } catch(e) {}
-  // Luego sincronizar desde Sheets (fuente de verdad)
-  loadDisabledFromSheets();
+  // loadDisabledFromSheets() se llama desde el init después de definir webAppGet
 }
 
 function saveDisabled() {
@@ -1407,16 +1413,19 @@ function saveDisabled() {
 async function loadDisabledFromSheets() {
   try {
     const data = await webAppGet({ action: 'list_disabled' });
+    console.log('Disabled desde Sheets:', JSON.stringify(data));
     if (!data.ok) return;
-    disabledDevices = new Set(data.disabled || []);
-    saveDisabled(); // actualizar cache local
+    disabledDevices = new Set((data.disabled || []).map(id => String(id).trim()));
+    saveDisabled();
     renderDevices();
     updateMetrics();
   } catch(e) { console.error('Error cargando disabled:', e); }
 }
 
 async function toggleDeviceDisabled(deviceId) {
+  if (!deviceId) { console.error('toggleDeviceDisabled: deviceId vacío'); return; }
   const wasDisabled = disabledDevices.has(deviceId);
+  console.log(`Toggle device: "${deviceId}" wasDisabled=${wasDisabled}`);
   // Actualizar UI inmediatamente (optimistic)
   if (wasDisabled) disabledDevices.delete(deviceId);
   else disabledDevices.add(deviceId);
@@ -1425,10 +1434,14 @@ async function toggleDeviceDisabled(deviceId) {
   updateMetrics();
   // Persistir en Sheets
   try {
-    await webAppGet({
-      action: wasDisabled ? 'enable_device' : 'disable_device',
-      device_id: deviceId
-    });
+    const action = wasDisabled ? 'enable_device' : 'disable_device';
+    console.log(`Enviando a Sheets: action=${action} device_id=${deviceId}`);
+    const result = await webAppGet({ action, device_id: deviceId });
+    console.log('Respuesta Sheets:', JSON.stringify(result));
+    if (result.ok) {
+      // Recargar desde Sheets para confirmar estado real
+      setTimeout(loadDisabledFromSheets, 500);
+    }
   } catch(e) { console.error('Error actualizando estado en Sheets:', e); }
 }
 
@@ -1723,10 +1736,11 @@ function checkAuth() {
 // Init
 loadStorage();
 checkAuth();
-loadDisabled(); // carga local + sincroniza con Sheets
+loadDisabled();           // carga cache local de localStorage
 renderDevices(); renderTickets(); updateMetrics();
-loadFromSheet();
-loadTicketsFromSheets(); // cargar tickets desde Web App al iniciar
+loadFromSheet();          // carga dispositivos desde Apps Script
+loadTicketsFromSheets();  // carga tickets desde Apps Script
+loadDisabledFromSheets(); // sincroniza disabled desde Sheets (fuente de verdad)
 initGoogleAuth();
 </script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
