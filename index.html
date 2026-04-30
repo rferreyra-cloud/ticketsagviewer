@@ -7,6 +7,16 @@
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f3; color: #1a1a1a; font-size: 14px; }
+  #login-screen { position:fixed; inset:0; background:#f5f5f3; z-index:9999; display:flex; align-items:center; justify-content:center; }
+  #login-box { background:#fff; border-radius:16px; border:0.5px solid #e0e0e0; padding:2.5rem 2rem; width:340px; box-shadow:0 4px 24px rgba(0,0,0,0.08); text-align:center; }
+  #login-box img { height:44px; margin-bottom:1.5rem; }
+  #login-box h2 { font-size:18px; font-weight:500; margin-bottom:4px; }
+  #login-box p { font-size:13px; color:#888; margin-bottom:1.5rem; }
+  #login-error { color:#A32D2D; font-size:12px; margin-top:8px; display:none; }
+  #login-input { width:100%; padding:10px 14px; border:0.5px solid #bbb; border-radius:8px; font-size:14px; font-family:inherit; margin-bottom:12px; text-align:center; letter-spacing:0.1em; }
+  #login-input:focus { outline:none; border-color:#555; }
+  #login-btn { width:100%; padding:10px; background:#1a1a1a; color:#fff; border:none; border-radius:8px; font-size:14px; font-family:inherit; cursor:pointer; font-weight:500; }
+  #login-btn:hover { background:#333; }
   .topbar { background: #fff; border-bottom: 0.5px solid #ddd; padding: 0 2rem; display: flex; align-items: center; justify-content: space-between; height: 56px; position: sticky; top: 0; z-index: 10; }
   .topbar h1 { font-size: 16px; font-weight: 500; }
   .topbar p { font-size: 12px; color: #666; margin-top: 1px; }
@@ -115,6 +125,17 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div id="login-box">
+    <h2>AgViewer IoT</h2>
+    <p>Ingresa la contraseña para acceder</p>
+    <input type="password" id="login-input" placeholder="••••••••" onkeydown="if(event.key==='Enter') checkLogin()">
+    <button id="login-btn" onclick="checkLogin()">Ingresar</button>
+    <div id="login-error">Contraseña incorrecta. Intenta nuevamente.</div>
+  </div>
+</div>
 
 <div class="topbar">
   <div style="display:flex; align-items:center; gap:14px;">
@@ -953,24 +974,20 @@ function saveConfig() {
 }
 
 async function loadFromSheet() {
-  if (!config.sheetId || !config.apiKey) { openConfig(); return; }
   const status = document.getElementById('sync-status');
   status.textContent = 'Sincronizando...';
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.sheetId}/values/${encodeURIComponent(config.sheetName)}?key=${config.apiKey}`;
   try {
-    const r = await fetch(url);
-    const data = await r.json();
-    if (data.error) {
-      status.textContent = 'Error: ' + data.error.message;
+    // Leer dispositivos via Apps Script (hoja privada)
+    const data = await webAppGet({ action: 'list_devices' });
+    if (!data.ok) {
+      status.textContent = 'Error cargando dispositivos';
       status.style.color = '#A32D2D';
       return;
     }
-    const rows = data.values || [];
-    if (rows.length < 2) { status.textContent = 'La hoja no tiene datos.'; return; }
-    const headers = rows[0].map(h => h.trim().toLowerCase());
-    if (!headers.includes('serial'))           { alert('Falta la columna "serial".'); return; }
-    if (!headers.includes('last_transmission')) { alert('Falta la columna "last_transmission".'); return; }
-    const allDevices = rows.slice(1).map(row => parseRow(row, headers)).filter(d => d.serial);
+    const allDevices = (data.devices || []).map(d => ({
+      ...d,
+      zona: getZona(d.latitude)
+    }));
     // Solo dispositivos con última transmisión dentro de los últimos 365 días
     devices = allDevices.filter(d => daysDiff(d.last_transmission) <= 365);
     const excluded = allDevices.length - devices.length;
@@ -1668,8 +1685,44 @@ async function autoResolveInSheets(ids) {
   } catch(e) { console.error('Error auto-resolviendo en Sheets:', e); }
 }
 
+// ═══════════════════════════════════════════════════════
+// AUTENTICACIÓN CON CONTRASEÑA
+// ═══════════════════════════════════════════════════════
+const APP_PASSWORD_HASH = '89d5875e5dcd0064cbd7ffa0c95fa4e00eb6ae6a'; // SHA1 de agviewer2024
+
+async function hashPassword(pwd) {
+  const msgBuffer = new TextEncoder().encode(pwd);
+  const hashBuffer = await crypto.subtle.digest('SHA-1', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function checkLogin() {
+  const pwd = document.getElementById('login-input').value;
+  if (!pwd) return;
+  const hash = await hashPassword(pwd);
+  if (hash === APP_PASSWORD_HASH) {
+    sessionStorage.setItem('iot_auth', hash);
+    document.getElementById('login-screen').style.display = 'none';
+    document.getElementById('login-error').style.display = 'none';
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('login-input').value = '';
+    document.getElementById('login-input').focus();
+  }
+}
+
+function checkAuth() {
+  const auth = sessionStorage.getItem('iot_auth');
+  if (auth === APP_PASSWORD_HASH) {
+    document.getElementById('login-screen').style.display = 'none';
+  }
+  // Si no está autenticado, el login-screen queda visible
+}
+
 // Init
 loadStorage();
+checkAuth();
 loadDisabled(); // carga local + sincroniza con Sheets
 renderDevices(); renderTickets(); updateMetrics();
 loadFromSheet();
