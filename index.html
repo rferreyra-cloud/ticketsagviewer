@@ -37,7 +37,7 @@
   .tab-bar { display: flex; gap: 4px; border-bottom: 0.5px solid #e0e0e0; margin-bottom: 1rem; }
   .tab { font-size: 13px; padding: 8px 16px; cursor: pointer; color: #666; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; border-left: none; border-right: none; border-top: none; font-family: inherit; transition: color 0.15s; }
   .tab.active { color: #1a1a1a; border-bottom-color: #1a1a1a; font-weight: 500; }
-  .device-row { display: grid; grid-template-columns: 1.8fr 0.9fr 0.9fr 0.9fr 1.5fr 0.9fr 0.9fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
+  .device-row { display: grid; grid-template-columns: 1.8fr 0.9fr 0.9fr 0.9fr 1.5fr 0.9fr 0.9fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
   .device-row:last-child { border-bottom: none; }
   .device-row-header { color: #888; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; }
   .ticket-row { display: grid; grid-template-columns: 70px 2fr 1.1fr 1fr 1fr 1fr 0.8fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
@@ -64,6 +64,14 @@
   .alert-success { background: #EAF3DE; color: #3B6D11; border: 0.5px solid #C0DD97; }
   .sync-status { font-size: 12px; color: #666; }
   code { font-family: monospace; background: #f5f5f3; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+  .device-row.disabled-device { opacity: 0.4; }
+  .device-row.disabled-device:hover { opacity: 0.6; }
+  .toggle-switch { position:relative; display:inline-block; width:32px; height:18px; flex-shrink:0; }
+  .toggle-switch input { opacity:0; width:0; height:0; }
+  .toggle-slider { position:absolute; cursor:pointer; inset:0; background:#ddd; border-radius:18px; transition:.2s; }
+  .toggle-slider:before { position:absolute; content:""; height:12px; width:12px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.2s; }
+  .toggle-switch input:checked + .toggle-slider { background:#639922; }
+  .toggle-switch input:checked + .toggle-slider:before { transform:translateX(14px); }
   .ms-wrap { position: relative; display: inline-block; z-index: 1000; }
   .ms-trigger { display: flex; align-items: center; justify-content: space-between; gap: 6px; background: #fff; border: 0.5px solid #bbb; border-radius: 8px; padding: 7px 10px; font-size: 13px; cursor: pointer; min-width: 200px; user-select: none; color: #1a1a1a; }
   .ms-trigger:hover { border-color: #555; }
@@ -182,6 +190,10 @@
         </div>
       </div>
       <input type="text" id="search-device" placeholder="Buscar nombre, serial, usuario..." style="width:200px;" oninput="renderDevices()">
+      <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#555; cursor:pointer; margin-left:8px;">
+        <input type="checkbox" id="filter-show-disabled" onchange="renderDevices()" style="width:auto;">
+        Mostrar inactivos
+      </label>
       <div class="toolbar-right">
         <button class="btn btn-sm" onclick="openImportModal()">Importar CSV</button>
       </div>
@@ -196,6 +208,7 @@
         <span>Tiempo offline</span>
         <span>Estado</span>
         <span></span>
+        <span title="Activo/Inactivo" style="text-align:center;">Activo</span>
       </div>
       <div id="device-list"></div>
     </div>
@@ -739,6 +752,7 @@ function renderDevices() {
 
   // Subconjunto filtrado por apis y zonas seleccionadas (para métricas contextuales)
   const byApi = devices.filter(d =>
+    !disabledDevices.has(d.device_id) &&
     (selectedApis.size === 0 || selectedApis.has(d.api)) &&
     (selectedZonas.size === 0 || selectedZonas.has(d.zona))
   );
@@ -747,8 +761,11 @@ function renderDevices() {
   document.getElementById('m-offline').textContent = offlineByApi;
   document.getElementById('m-api-label').textContent = 'Sin comunicación';
 
+  const showDisabled = document.getElementById('filter-show-disabled')?.checked;
   let list = byApi.filter(d => {
     const st = deviceStatus(d);
+    const isDisabled = disabledDevices.has(d.device_id);
+    if (isDisabled && !showDisabled) return false;
     return (statusF === 'all' || st === statusF)
       && (!search || (d.name||'').toLowerCase().includes(search) || (d.serial||'').toLowerCase().includes(search) || (d.users||'').toLowerCase().includes(search) || (d.zona||'').toLowerCase().includes(search));
   });
@@ -775,9 +792,13 @@ function renderDevices() {
       ? `<button class="btn btn-sm btn-danger-sm" onclick="openNewTicketForDevice('${d.device_id}')">+ Ticket</button>`
       : `<button class="btn btn-sm" style="color:#666; font-size:11px;" onclick="openNewTicketForDevice('${d.device_id}')">+ Ticket</button>`;
     const dayColor = st==='offline'?'color:#A32D2D;':st==='warning'?'color:#854F0B;':'color:#3B6D11;';
-    return `<div class="device-row">
+    const isDisabled = disabledDevices.has(d.device_id);
+    const disabledClass = isDisabled ? ' disabled-device' : '';
+    const checkedAttr = isDisabled ? '' : 'checked';
+    return `<div class="device-row${disabledClass}">
       <div>
-        <span style="font-weight:500;">${d.name||d.serial}</span><br>
+        <span style="font-weight:500;">${d.name||d.serial}</span>
+        ${isDisabled ? '<span class="badge badge-gray" style="font-size:10px; margin-left:4px;">Inactivo</span>' : ''}<br>
         <span style="font-size:11px; color:#888; font-family:monospace;">${d.serial}${d.timezone?' · '+d.timezone:''}</span>
       </div>
       <div><span class="badge badge-purple">${d.api||'—'}</span></div>
@@ -785,8 +806,14 @@ function renderDevices() {
       <div style="font-size:12px; color:#555;">${d.users||'—'}</div>
       <div style="color:#666;">${formatTransmission(d.last_transmission)}</div>
       <div style="${dayColor} font-weight:500;">${formatDays(days)}</div>
-      <div>${badge}</div>
-      <div>${btn}</div>
+      <div>${isDisabled ? '<span class="badge badge-gray">Inactivo</span>' : badge}</div>
+      <div>${isDisabled ? '' : btn}</div>
+      <div style="text-align:center;">
+        <label class="toggle-switch" title="${isDisabled ? 'Activar dispositivo' : 'Desactivar dispositivo'}">
+          <input type="checkbox" ${checkedAttr} onchange="toggleDeviceDisabled('${d.device_id}')">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
     </div>`;
   }).join('');
 }
@@ -1305,6 +1332,30 @@ function makeMarkerIcon(color, hasTicket) {
   });
 }
 
+// Dispositivos deshabilitados — persistidos en localStorage
+let disabledDevices = new Set();
+
+function loadDisabled() {
+  try {
+    const d = localStorage.getItem('iot_disabled');
+    if (d) disabledDevices = new Set(JSON.parse(d));
+  } catch(e) {}
+}
+
+function saveDisabled() {
+  try {
+    localStorage.setItem('iot_disabled', JSON.stringify([...disabledDevices]));
+  } catch(e) {}
+}
+
+function toggleDeviceDisabled(deviceId) {
+  if (disabledDevices.has(deviceId)) disabledDevices.delete(deviceId);
+  else disabledDevices.add(deviceId);
+  saveDisabled();
+  renderDevices();
+  updateMetrics();
+}
+
 let selectedMapApis = new Set(DEFAULT_APIS);
 
 function updateMapApiFilter() {
@@ -1560,6 +1611,7 @@ async function autoResolveInSheets(ids) {
 
 // Init
 loadStorage();
+loadDisabled();
 renderDevices(); renderTickets(); updateMetrics();
 loadFromSheet();
 loadTicketsFromSheets(); // cargar tickets desde Web App al iniciar
