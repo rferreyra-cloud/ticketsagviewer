@@ -1367,28 +1367,52 @@ function makeMarkerIcon(color, hasTicket) {
   });
 }
 
-// Dispositivos deshabilitados — persistidos en localStorage
+// Dispositivos deshabilitados — sincronizados con Google Sheets (hoja Disabled)
 let disabledDevices = new Set();
 
 function loadDisabled() {
+  // Cargar desde localStorage como cache inicial
   try {
     const d = localStorage.getItem('iot_disabled');
     if (d) disabledDevices = new Set(JSON.parse(d));
   } catch(e) {}
+  // Luego sincronizar desde Sheets (fuente de verdad)
+  loadDisabledFromSheets();
 }
 
 function saveDisabled() {
+  // Siempre guardar en localStorage como backup
   try {
     localStorage.setItem('iot_disabled', JSON.stringify([...disabledDevices]));
   } catch(e) {}
 }
 
-function toggleDeviceDisabled(deviceId) {
-  if (disabledDevices.has(deviceId)) disabledDevices.delete(deviceId);
+async function loadDisabledFromSheets() {
+  try {
+    const data = await webAppGet({ action: 'list_disabled' });
+    if (!data.ok) return;
+    disabledDevices = new Set(data.disabled || []);
+    saveDisabled(); // actualizar cache local
+    renderDevices();
+    updateMetrics();
+  } catch(e) { console.error('Error cargando disabled:', e); }
+}
+
+async function toggleDeviceDisabled(deviceId) {
+  const wasDisabled = disabledDevices.has(deviceId);
+  // Actualizar UI inmediatamente (optimistic)
+  if (wasDisabled) disabledDevices.delete(deviceId);
   else disabledDevices.add(deviceId);
   saveDisabled();
   renderDevices();
   updateMetrics();
+  // Persistir en Sheets
+  try {
+    await webAppGet({
+      action: wasDisabled ? 'enable_device' : 'disable_device',
+      device_id: deviceId
+    });
+  } catch(e) { console.error('Error actualizando estado en Sheets:', e); }
 }
 
 let selectedMapApis = new Set(DEFAULT_APIS);
@@ -1646,7 +1670,7 @@ async function autoResolveInSheets(ids) {
 
 // Init
 loadStorage();
-loadDisabled();
+loadDisabled(); // carga local + sincroniza con Sheets
 renderDevices(); renderTickets(); updateMetrics();
 loadFromSheet();
 loadTicketsFromSheets(); // cargar tickets desde Web App al iniciar
