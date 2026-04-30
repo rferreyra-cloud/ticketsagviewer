@@ -414,12 +414,34 @@
       </div>
       <div class="input-group">
         <label>Asignado a</label>
-        <input type="text" id="ticket-assignee" placeholder="Nombre del encargado">
+        <select id="ticket-assignee-select" onchange="onAssigneeSelectChange()">
+          <option value="Cristobal Carbajal">Cristobal Carbajal (Norte)</option>
+          <option value="Ricardo Nuñez">Ricardo Nuñez (Sexta-norte)</option>
+          <option value="Pablo Gonzalez">Pablo Gonzalez (Sexta-sur)</option>
+          <option value="Francisco Escobar">Francisco Escobar (Sur)</option>
+          <option value="otro">Otro encargado...</option>
+        </select>
       </div>
     </div>
-    <div class="input-group">
-      <label>Email del encargado</label>
-      <input type="email" id="ticket-assignee-email" placeholder="correo@morph2ola.com">
+    <div id="assignee-custom-wrap" style="display:none;">
+      <div class="grid-2">
+        <div class="input-group">
+          <label>Nombre del encargado</label>
+          <input type="text" id="ticket-assignee" placeholder="Nombre completo">
+        </div>
+        <div class="input-group">
+          <label>Email</label>
+          <input type="email" id="ticket-assignee-email" placeholder="correo@morph2ola.com">
+        </div>
+      </div>
+    </div>
+    <div id="assignee-known-wrap">
+      <div style="background:#f5f5f3; border-radius:8px; padding:8px 12px; font-size:12px; color:#555; margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+        <span id="assignee-known-name" style="font-weight:500;"></span>
+        <span id="assignee-known-email" style="color:#185FA5;"></span>
+      </div>
+      <input type="hidden" id="ticket-assignee">
+      <input type="hidden" id="ticket-assignee-email">
     </div>
     <div class="input-group">
       <label>Descripción del problema</label>
@@ -954,6 +976,46 @@ function exportTickets() {
   a.click();
 }
 
+function onAssigneeSelectChange() {
+  const sel = document.getElementById('ticket-assignee-select').value;
+  const customWrap  = document.getElementById('assignee-custom-wrap');
+  const knownWrap   = document.getElementById('assignee-known-wrap');
+
+  if (sel === 'otro') {
+    customWrap.style.display  = '';
+    knownWrap.style.display   = 'none';
+    document.getElementById('ticket-assignee').value       = '';
+    document.getElementById('ticket-assignee-email').value = '';
+  } else {
+    customWrap.style.display = 'none';
+    knownWrap.style.display  = '';
+    const enc = Object.values(ENCARGADOS).find(e => e.nombre === sel);
+    const nombre = enc ? enc.nombre : sel;
+    const email  = enc ? enc.email  : '';
+    document.getElementById('ticket-assignee').value       = nombre;
+    document.getElementById('ticket-assignee-email').value = email;
+    document.getElementById('assignee-known-name').textContent  = nombre;
+    document.getElementById('assignee-known-email').textContent = email;
+  }
+}
+
+function setAssigneeInModal(nombre, email) {
+  const sel = document.getElementById('ticket-assignee-select');
+  const isKnown = Object.values(ENCARGADOS).some(e => e.nombre === nombre);
+
+  if (isKnown || !nombre) {
+    sel.value = nombre || Object.values(ENCARGADOS)[0].nombre;
+  } else {
+    sel.value = 'otro';
+  }
+  onAssigneeSelectChange();
+
+  if (!isKnown && nombre) {
+    document.getElementById('ticket-assignee').value       = nombre;
+    document.getElementById('ticket-assignee-email').value = email || '';
+  }
+}
+
 function onTicketTypeChange() {
   const tipo = document.getElementById('ticket-type').value;
   const note = document.getElementById('ticket-manual-only-note');
@@ -968,8 +1030,7 @@ function fillTicketDeviceInfo() {
     info.style.display = '';
     const enc = getEncargado(dev.zona);
     info.innerHTML = `Serial: <strong>${dev.serial||'—'}</strong> &nbsp;·&nbsp; Tipo: <strong>${dev.api||'—'}</strong> &nbsp;·&nbsp; Zona: <strong>${dev.zona||'—'}</strong> &nbsp;·&nbsp; Usuario: <strong>${dev.users||'—'}</strong><br>Última transmisión: <strong>${formatTransmission(dev.last_transmission)}</strong>${enc ? ` &nbsp;·&nbsp; Encargado: <strong>${enc.nombre}</strong>` : ''}`;
-    document.getElementById('ticket-assignee').value = enc ? enc.nombre : '';
-    document.getElementById('ticket-assignee-email').value = enc ? enc.email : '';
+    setAssigneeInModal(enc ? enc.nombre : '', enc ? enc.email : '');
   } else { info.style.display = 'none'; }
 }
 
@@ -992,8 +1053,7 @@ function openNewTicket(devId) {
   const selDev = document.getElementById('ticket-device').value;
   const devForAssign = devices.find(d => d.device_id === selDev);
   const enc = devForAssign ? getEncargado(devForAssign.zona) : null;
-  document.getElementById('ticket-assignee').value = enc ? enc.nombre : '';
-  document.getElementById('ticket-assignee-email').value = enc ? enc.email : '';
+  setAssigneeInModal(enc ? enc.nombre : '', enc ? enc.email : '');
   document.getElementById('ticket-desc').value = '';
   document.getElementById('ticket-priority').value = 'Alta';
   document.getElementById('ticket-status-select').value = 'Abierto';
@@ -1019,8 +1079,7 @@ function editTicket(id) {
   fillTicketDeviceInfo();
   document.getElementById('ticket-type').value = t.ticket_type || 'comunicacion';
   onTicketTypeChange();
-  document.getElementById('ticket-assignee').value = t.assignee;
-  document.getElementById('ticket-assignee-email').value = t.assignee_email || '';
+  setAssigneeInModal(t.assignee || '', t.assignee_email || '');
   document.getElementById('ticket-desc').value = t.description;
   document.getElementById('ticket-priority').value = t.priority;
   document.getElementById('ticket-status-select').value = t.status;
