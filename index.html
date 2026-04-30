@@ -40,7 +40,7 @@
   .device-row { display: grid; grid-template-columns: 1.8fr 0.9fr 0.9fr 0.9fr 1.5fr 0.9fr 0.9fr auto auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
   .device-row:last-child { border-bottom: none; }
   .device-row-header { color: #888; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; }
-  .ticket-row { display: grid; grid-template-columns: 70px 2fr 1.1fr 1fr 1fr 1fr 0.8fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
+  .ticket-row { display: grid; grid-template-columns: 70px 2fr 1.1fr 1fr 1fr 1fr 0.8fr 0.8fr 0.8fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 0.5px solid #f0f0f0; font-size: 13px; }
   .ticket-row:last-child { border-bottom: none; }
   .ticket-row-header { color: #888; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; }
   .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 100; align-items: center; justify-content: center; }
@@ -242,7 +242,9 @@
         <span>Asignado</span>
         <span>Prioridad</span>
         <span>Estado</span>
-        <span>Días abierto</span>
+        <span>Apertura</span>
+        <span>Cierre</span>
+        <span>Días</span>
         <span></span>
       </div>
       <div id="ticket-list"></div>
@@ -769,8 +771,15 @@ function renderDevices() {
     return (statusF === 'all' || st === statusF)
       && (!search || (d.name||'').toLowerCase().includes(search) || (d.serial||'').toLowerCase().includes(search) || (d.users||'').toLowerCase().includes(search) || (d.zona||'').toLowerCase().includes(search));
   });
-  const order = { offline:0, warning:1, online:2 };
-  list.sort((a,b) => order[deviceStatus(a)] - order[deviceStatus(b)]);
+  // Ordenar por última transmisión más reciente primero
+  list.sort((a,b) => {
+    const da = parseTransmission(a.last_transmission);
+    const db = parseTransmission(b.last_transmission);
+    if (!da && !db) return 0;
+    if (!da) return 1;
+    if (!db) return -1;
+    return db - da;
+  });
 
   const el = document.getElementById('device-list');
   if (!list.length) {
@@ -833,6 +842,13 @@ function ticketAgeLabel(t) {
   return `${d}d`;
 }
 
+function shortDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (isNaN(d)) return '—';
+  return d.toLocaleDateString('es-CL', { day:'2-digit', month:'short' });
+}
+
 function ticketAgeColor(t) {
   if (t.status === 'Resuelto') return 'color:#3B6D11;';
   const d = ticketAge(t);
@@ -878,7 +894,9 @@ function renderTickets() {
         <span class="badge ${stBadge}">${t.status}</span>
         ${t.ticket_type==='reparacion'?'<br><span style="font-size:10px;color:#888;">Reparación</span>':''}
       </div>
-      <div style="font-size:13px; ${ageColor}" title="${ageTitle}">${ageLabel}</div>
+      <div style="font-size:11px; color:#888;">${shortDate(t.created)}</div>
+      <div style="font-size:11px; color:${t.status==='Resuelto'?'#3B6D11':'#aaa'};">${t.resolved_at ? shortDate(t.resolved_at) : (t.status==='Resuelto'?'—':'Abierto')}</div>
+      <div style="font-size:12px; ${ageColor}" title="${ageTitle}">${t.status==='Resuelto'?'<span style=\'color:#3B6D11\'>'+ageLabel+'</span>':ageLabel}</div>
       <div style="display:flex; gap:4px;">
         <button class="btn btn-sm" onclick="viewTicket(${t.id})">Ver</button>
         <button class="btn btn-sm" onclick="editTicket(${t.id})">Editar</button>
