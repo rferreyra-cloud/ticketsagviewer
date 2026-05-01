@@ -113,6 +113,31 @@
   .progress-bar { height: 6px; border-radius: 3px; background: #f0f0f0; overflow: hidden; margin-top: 4px; }
   .progress-fill { height: 100%; border-radius: 3px; transition: width 0.3s; }
   .rep-empty { text-align: center; padding: 1.5rem; color: #aaa; font-size: 13px; }
+  .an-section { margin-bottom: 2rem; }
+  .an-title { font-size: 13px; font-weight: 500; color: #555; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 1rem; display:flex; align-items:center; gap:8px; }
+  .an-title::after { content:''; flex:1; height:0.5px; background:#e0e0e0; }
+  .an-grid { display: grid; gap: 12px; }
+  .an-grid-3 { grid-template-columns: repeat(3,1fr); }
+  .an-grid-2 { grid-template-columns: repeat(2,1fr); }
+  .an-card { background:#fff; border:0.5px solid #e0e0e0; border-radius:12px; padding:1rem 1.25rem; }
+  .an-card-title { font-size:12px; color:#888; margin-bottom:0.75rem; font-weight:500; }
+  .an-bar-row { display:flex; align-items:center; gap:8px; margin-bottom:7px; font-size:12px; }
+  .an-bar-label { width:110px; color:#555; flex-shrink:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .an-bar-track { flex:1; height:8px; background:#f0f0f0; border-radius:4px; overflow:hidden; }
+  .an-bar-fill { height:100%; border-radius:4px; transition:width 0.4s; }
+  .an-bar-val { width:40px; text-align:right; color:#888; flex-shrink:0; }
+  .an-spark { display:flex; align-items:flex-end; gap:3px; height:60px; }
+  .an-spark-col { display:flex; flex-direction:column; align-items:center; gap:2px; flex:1; }
+  .an-spark-bar { width:100%; border-radius:3px 3px 0 0; background:#639922; min-height:2px; transition:height 0.3s; }
+  .an-spark-lbl { font-size:9px; color:#aaa; white-space:nowrap; overflow:hidden; max-width:30px; text-overflow:ellipsis; }
+  .an-reinci-row { display:flex; align-items:center; gap:10px; padding:8px 0; border-bottom:0.5px solid #f5f5f3; font-size:12px; }
+  .an-reinci-row:last-child { border-bottom:none; }
+  .an-kpi { text-align:center; }
+  .an-kpi-val { font-size:28px; font-weight:500; }
+  .an-kpi-lbl { font-size:11px; color:#888; margin-top:2px; }
+  .an-empty { text-align:center; padding:2rem; color:#aaa; font-size:13px; }
+  .period-btn { padding:4px 10px; font-size:12px; border:0.5px solid #e0e0e0; border-radius:6px; background:#fff; cursor:pointer; color:#555; }
+  .period-btn.active { background:#1a1a1a; color:#fff; border-color:#1a1a1a; }
   #map-container { border-radius: 12px; overflow: hidden; border: 0.5px solid #e0e0e0; }
   .map-legend { background: #fff; border: 0.5px solid #e0e0e0; border-radius: 10px; padding: 12px 16px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 1rem; font-size: 12px; }
   .legend-item { display: flex; align-items: center; gap: 6px; }
@@ -173,6 +198,7 @@
     <button class="tab" onclick="switchTab('tickets', this)">Tickets</button>
     <button class="tab" onclick="switchTab('reporte', this)">Reporte encargados</button>
     <button class="tab" onclick="switchTab('mapa', this)">Mapa de calor</button>
+    <button class="tab" onclick="switchTab('analytics', this)">Analítica</button>
   </div>
 
   <!-- DISPOSITIVOS -->
@@ -394,6 +420,84 @@
       <!-- Mapa -->
       <div id="map-container" style="border-radius:12px; overflow:hidden; border:0.5px solid #e0e0e0; height:100%;"></div>
     </div>
+  </div>
+
+  <!-- ANALYTICS -->
+  <div id="tab-analytics" style="display:none;">
+
+    <!-- Toolbar período -->
+    <div class="toolbar" style="margin-bottom:1.25rem;">
+      <div style="display:flex; gap:4px;">
+        <button class="period-btn active" onclick="setPeriod(30,this)">30d</button>
+        <button class="period-btn" onclick="setPeriod(90,this)">90d</button>
+        <button class="period-btn" onclick="setPeriod(180,this)">180d</button>
+        <button class="period-btn" onclick="setPeriod(9999,this)">Todo</button>
+      </div>
+      <span id="an-period-label" style="font-size:12px;color:#888;margin-left:8px;"></span>
+    </div>
+
+    <!-- KPIs globales -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:2rem;" id="an-kpis"></div>
+
+    <!-- SECCIÓN 1: TIEMPO -->
+    <div class="an-section">
+      <div class="an-title">Tiempo</div>
+      <div class="an-grid an-grid-2" style="margin-bottom:12px;">
+        <div class="an-card">
+          <div class="an-card-title">Tiempo promedio resolución por Zona</div>
+          <div id="an-zona-chart"></div>
+        </div>
+        <div class="an-card">
+          <div class="an-card-title">Tiempo promedio resolución por Tipo (api)</div>
+          <div id="an-api-res-chart"></div>
+        </div>
+      </div>
+      <div class="an-card">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div class="an-card-title" id="an-trend-title" style="margin:0;">Tickets creados por semana</div>
+          <div style="display:flex;gap:4px;">
+            <button class="period-btn active" id="btn-week" onclick="setTrendMode('week',this)">Semana</button>
+            <button class="period-btn" id="btn-month" onclick="setTrendMode('month',this)">Mes</button>
+          </div>
+        </div>
+        <div id="an-trend-chart" style="display:flex;align-items:flex-end;gap:4px;height:110px;padding-top:8px;"></div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 2: COMUNICACIÓN -->
+    <div class="an-section">
+      <div class="an-title">Comunicación</div>
+      <div class="an-grid an-grid-2" style="margin-bottom:12px;">
+        <div class="an-card">
+          <div class="an-card-title">Tipos de equipo con más fallas (api)</div>
+          <div id="an-api-fail-chart"></div>
+        </div>
+        <div class="an-card">
+          <div class="an-card-title">Tickets resueltos vs abiertos por Encargado</div>
+          <div id="an-enc-status-chart"></div>
+        </div>
+      </div>
+      <div class="an-card">
+        <div class="an-card-title">Reincidencia — equipos con múltiples tickets de comunicación</div>
+        <div id="an-reinci-list"></div>
+      </div>
+    </div>
+
+    <!-- SECCIÓN 3: ENCARGADOS -->
+    <div class="an-section">
+      <div class="an-title">Encargados</div>
+      <div class="an-grid an-grid-2">
+        <div class="an-card">
+          <div class="an-card-title">Tiempo promedio resolución por Encargado</div>
+          <div id="an-enc-chart"></div>
+        </div>
+        <div class="an-card">
+          <div class="an-card-title">Distribución de problemas por Zona</div>
+          <div id="an-zona-dist-chart"></div>
+        </div>
+      </div>
+    </div>
+
   </div>
 
 <!-- MODAL CONFIG -->
@@ -778,6 +882,7 @@ function renderDevices() {
 
   // Subconjunto filtrado por apis y zonas seleccionadas (para métricas contextuales)
   const showDisabled = document.getElementById('filter-show-disabled')?.checked;
+  console.log('disabledDevices:', [...disabledDevices], 'showDisabled:', showDisabled);
 
   // byApi: activos solamente (para métricas)
   const byApi = devices.filter(d =>
@@ -957,8 +1062,10 @@ function switchTab(tab, el) {
   document.getElementById('tab-tickets').style.display = tab==='tickets' ? '' : 'none';
   document.getElementById('tab-reporte').style.display = tab==='reporte' ? '' : 'none';
   document.getElementById('tab-mapa').style.display = tab==='mapa' ? '' : 'none';
+  document.getElementById('tab-analytics').style.display = tab==='analytics' ? '' : 'none';
   if (tab === 'reporte') renderReporte();
   if (tab === 'mapa') renderMapa();
+  if (tab === 'analytics') renderAnalytics();
 }
 
 function openConfig() {
@@ -1731,6 +1838,229 @@ function checkAuth() {
     document.getElementById('login-screen').style.display = 'none';
   }
   // Si no está autenticado, el login-screen queda visible
+}
+
+// ═══════════════════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════════════════
+let anPeriodDays = 30;
+let anTrendMode  = 'week';
+
+function setPeriod(days, el) {
+  anPeriodDays = days;
+  document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderAnalytics();
+}
+
+function setTrendMode(mode, el) {
+  anTrendMode = mode;
+  document.getElementById('btn-week').classList.toggle('active', mode==='week');
+  document.getElementById('btn-month').classList.toggle('active', mode==='month');
+  renderTrend(filteredTickets());
+}
+
+function filteredTickets() {
+  const cutoff = anPeriodDays === 9999 ? 0 : Date.now() - anPeriodDays * 86400000;
+  return tickets.filter(t => new Date(t.created).getTime() >= cutoff);
+}
+
+function avgDays(arr) {
+  const resolved = arr.filter(t => t.status === 'Resuelto' && t.resolved_at);
+  if (!resolved.length) return null;
+  const total = resolved.reduce((s, t) => {
+    return s + (new Date(t.resolved_at) - new Date(t.created)) / 86400000;
+  }, 0);
+  return (total / resolved.length).toFixed(1);
+}
+
+function barChart(container, data, color, countMode=false) {
+  if (!data.length) { container.innerHTML = '<div class="an-empty">Sin datos suficientes</div>'; return; }
+  const max = Math.max(...data.map(d => d.value || 0), 0.1);
+  container.innerHTML = data.map(d => `
+    <div class="an-bar-row">
+      <div class="an-bar-label" title="${d.label}">${d.label}</div>
+      <div class="an-bar-track">
+        <div class="an-bar-fill" style="width:${Math.round((d.value/max)*100)}%; background:${color};"></div>
+      </div>
+      <div class="an-bar-val">${d.value !== null ? d.value+(countMode?'':' d') : '—'}</div>
+    </div>`).join('');
+}
+
+function renderTrend(tks) {
+  const title = document.getElementById('an-trend-title');
+  const chart = document.getElementById('an-trend-chart');
+  title.textContent = `Tickets creados por ${anTrendMode === 'week' ? 'semana' : 'mes'}`;
+
+  const buckets = {};
+  tks.forEach(t => {
+    const d = new Date(t.created);
+    let key;
+    if (anTrendMode === 'week') {
+      // ISO week
+      const day = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+      const dayNum = day.getUTCDay() || 7;
+      day.setUTCDate(day.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(day.getUTCFullYear(), 0, 1));
+      const week = Math.ceil((((day - yearStart) / 86400000) + 1) / 7);
+      key = `${d.getFullYear()}-S${String(week).padStart(2,'0')}`;
+    } else {
+      key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+    buckets[key] = (buckets[key] || 0) + 1;
+  });
+
+  const keys = Object.keys(buckets).sort();
+  if (!keys.length) { chart.innerHTML = '<div class="an-empty">Sin datos</div>'; return; }
+  const max = Math.max(...Object.values(buckets), 1);
+  const colors = ['#639922','#EF9F27','#E8622A','#E24B4A','#185FA5'];
+
+  chart.innerHTML = '';
+  chart.style.display = 'flex';
+  chart.style.alignItems = 'flex-end';
+  chart.style.gap = '4px';
+  chart.style.height = '100px';
+
+  keys.forEach((k, i) => {
+    const val = buckets[k];
+    const pct = Math.round((val / max) * 80);
+    const col = document.createElement('div');
+    col.className = 'an-spark-col';
+    col.title = `${k}: ${val} ticket${val>1?'s':''}`;
+    const lbl = anTrendMode === 'week' ? k.split('-S')[1] : k.split('-')[1];
+    col.innerHTML = `
+      <div style="font-size:10px;color:#888;margin-bottom:2px;">${val}</div>
+      <div style="width:100%;height:${pct}px;min-height:2px;border-radius:3px 3px 0 0;background:${colors[i%colors.length]};"></div>
+      <div style="font-size:9px;color:#aaa;margin-top:2px;white-space:nowrap;">${lbl}</div>`;
+    chart.appendChild(col);
+  });
+}
+
+function renderAnalytics() {
+  const tks = filteredTickets();
+  const label = anPeriodDays === 9999 ? 'Todo el historial' : `Últimos ${anPeriodDays} días`;
+  document.getElementById('an-period-label').textContent = `${label} · ${tks.length} tickets`;
+
+  // ── KPIs globales ──
+  const resolved = tks.filter(t => t.status === 'Resuelto');
+  const abiertos = tks.filter(t => t.status !== 'Resuelto');
+  const autoRes  = tks.filter(t => t.auto_resolved === true || t.auto_resolved === 'true');
+  const avgRes   = avgDays(tks);
+  const tRate    = tks.length ? Math.round(resolved.length / tks.length * 100) : 0;
+  document.getElementById('an-kpis').innerHTML = `
+    <div class="metric-card an-kpi"><div class="an-kpi-val">${tks.length}</div><div class="an-kpi-lbl">Total tickets</div></div>
+    <div class="metric-card an-kpi"><div class="an-kpi-val" style="color:#3B6D11;">${resolved.length}</div><div class="an-kpi-lbl">Resueltos</div></div>
+    <div class="metric-card an-kpi"><div class="an-kpi-val" style="color:#E24B4A;">${abiertos.length}</div><div class="an-kpi-lbl">Pendientes</div></div>
+    <div class="metric-card an-kpi"><div class="an-kpi-val" style="color:#185FA5;">${avgRes !== null ? avgRes+'d' : '—'}</div><div class="an-kpi-lbl">Prom. resolución</div></div>
+    <div class="metric-card an-kpi"><div class="an-kpi-val" style="color:#639922;">${tRate}%</div><div class="an-kpi-lbl">Tasa resolución</div></div>`;
+
+  // ══ SECCIÓN TIEMPO ════════════════════════════════════════
+
+  // Promedio resolución por Zona
+  const zonas = [...new Set(tks.map(t => t.zona).filter(Boolean))].sort();
+  barChart(document.getElementById('an-zona-chart'),
+    zonas.map(z => ({ label:z, value:avgDays(tks.filter(t=>t.zona===z)) }))
+         .filter(d=>d.value!==null).sort((a,b)=>b.value-a.value), '#639922');
+
+  // Promedio resolución por Tipo api
+  const apis = [...new Set(tks.map(t => t.api).filter(Boolean))].sort();
+  barChart(document.getElementById('an-api-res-chart'),
+    apis.map(a => ({ label:a, value:avgDays(tks.filter(t=>t.api===a)) }))
+        .filter(d=>d.value!==null).sort((a,b)=>b.value-a.value), '#EF9F27');
+
+  // Tendencia
+  renderTrend(tks);
+
+  // ══ SECCIÓN COMUNICACIÓN ═════════════════════════════════
+
+  // Tipos con más fallas — solo tickets de comunicación
+  const tksCom = tks.filter(t => t.ticket_type !== 'reparacion');
+  const apisAll = [...new Set(tks.map(t => t.api).filter(Boolean))].sort();
+  barChart(document.getElementById('an-api-fail-chart'),
+    apisAll.map(a => ({
+      label: a,
+      value: tksCom.filter(t=>t.api===a).length
+    })).filter(d=>d.value>0).sort((a,b)=>b.value-a.value)
+       .map(d=>({...d, value:d.value})), // reusar barChart con conteo
+    '#E24B4A', true); // modo conteo
+
+  // Resueltos vs abiertos por encargado
+  const encsAll = [...new Set(tks.map(t=>t.assignee).filter(Boolean))];
+  const encStatusEl = document.getElementById('an-enc-status-chart');
+  if (!encsAll.length) {
+    encStatusEl.innerHTML = '<div class="an-empty">Sin datos</div>';
+  } else {
+    encStatusEl.innerHTML = encsAll.map(e => {
+      const etks = tks.filter(t=>t.assignee===e);
+      const eRes = etks.filter(t=>t.status==='Resuelto').length;
+      const eAb  = etks.filter(t=>t.status!=='Resuelto').length;
+      const pctRes = etks.length ? Math.round(eRes/etks.length*100) : 0;
+      const nombre = e.split(' ')[0];
+      return `<div class="an-bar-row" style="margin-bottom:10px;">
+        <div class="an-bar-label" title="${e}">${nombre}</div>
+        <div style="flex:1;">
+          <div style="display:flex;gap:2px;height:10px;border-radius:4px;overflow:hidden;">
+            <div style="width:${pctRes}%;background:#639922;min-width:${eRes?2:0}px;" title="${eRes} resueltos"></div>
+            <div style="flex:1;background:#E24B4A;min-width:${eAb?2:0}px;" title="${eAb} abiertos"></div>
+          </div>
+          <div style="font-size:10px;color:#888;margin-top:3px;">
+            <span style="color:#3B6D11;">✓ ${eRes}</span> &nbsp;
+            <span style="color:#A32D2D;">● ${eAb}</span> &nbsp;
+            <span>${pctRes}% resuelto</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Reincidencia — solo tickets de comunicación
+  const reinci = {};
+  tksCom.forEach(t => {
+    const key = t.device_id; if (!key) return;
+    if (!reinci[key]) reinci[key] = { name:t.name||t.serial||key, serial:t.serial, zona:t.zona, api:t.api, tickets:[] };
+    reinci[key].tickets.push(t);
+  });
+  const sorted = Object.values(reinci).filter(d=>d.tickets.length>1)
+    .sort((a,b)=>b.tickets.length-a.tickets.length).slice(0,15);
+  const reinciEl = document.getElementById('an-reinci-list');
+  if (!sorted.length) {
+    reinciEl.innerHTML = '<div class="an-empty">No hay equipos con tickets repetidos en el período.</div>';
+  } else {
+    const maxT = sorted[0].tickets.length;
+    reinciEl.innerHTML = `<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px 80px;gap:8px;padding:8px 0;font-size:11px;color:#888;font-weight:500;text-transform:uppercase;letter-spacing:0.03em;border-bottom:0.5px solid #f0f0f0;">
+      <span>Dispositivo</span><span>Zona</span><span>Tipo</span><span>Tickets</span><span>Resueltos</span><span>Prom. días</span>
+    </div>` + sorted.map(d => {
+      const res = d.tickets.filter(t=>t.status==='Resuelto').length;
+      const avg = avgDays(d.tickets);
+      const pct = Math.round(d.tickets.length/maxT*100);
+      const color = d.tickets.length>=5?'#A32D2D':d.tickets.length>=3?'#E8622A':'#EF9F27';
+      return `<div class="an-reinci-row" style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 80px 80px;gap:8px;align-items:center;">
+        <div><span style="font-weight:500;">${d.name}</span><br><span style="font-family:monospace;font-size:10px;color:#aaa;">${d.serial||'—'}</span></div>
+        <span style="color:#555;">${d.zona||'—'}</span>
+        <span><span class="badge badge-purple" style="font-size:10px;">${d.api||'—'}</span></span>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="flex:1;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div>
+          </div>
+          <span style="font-weight:500;color:${color};">${d.tickets.length}</span>
+        </div>
+        <span style="color:#3B6D11;font-weight:500;">${res}/${d.tickets.length}</span>
+        <span style="color:#555;">${avg!==null?avg+'d':'—'}</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ══ SECCIÓN ENCARGADOS ════════════════════════════════════
+
+  // Tiempo promedio por encargado
+  barChart(document.getElementById('an-enc-chart'),
+    encsAll.map(e => ({ label:e.split(' ')[0], value:avgDays(tks.filter(t=>t.assignee===e)) }))
+           .filter(d=>d.value!==null).sort((a,b)=>b.value-a.value), '#185FA5');
+
+  // Distribución de problemas por zona — conteo
+  barChart(document.getElementById('an-zona-dist-chart'),
+    zonas.map(z => ({ label:z, value:tks.filter(t=>t.zona===z).length }))
+         .filter(d=>d.value>0).sort((a,b)=>b.value-a.value), '#3C3489', true);
 }
 
 // Init
