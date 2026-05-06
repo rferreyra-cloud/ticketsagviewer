@@ -107,7 +107,7 @@
   .rep-stat:last-child { border-right: none; }
   .rep-stat-label { font-size: 11px; color: #888; margin-bottom: 2px; }
   .rep-stat-value { font-size: 20px; font-weight: 500; }
-  .rep-ticket-row { display: grid; grid-template-columns: 60px 2fr 1fr 1fr 1fr 1fr; gap: 8px; align-items: center; padding: 9px 1.25rem; border-bottom: 0.5px solid #f5f5f5; font-size: 12px; }
+  .rep-ticket-row { display: grid; grid-template-columns: 60px 2fr 2fr 1fr 1fr 1fr 1fr 1fr; gap: 8px; align-items: start; padding: 9px 1.25rem; border-bottom: 0.5px solid #f5f5f5; font-size: 12px; min-width:1000px; }
   .rep-ticket-row:last-child { border-bottom: none; }
   .rep-ticket-header { font-size: 11px; color: #888; font-weight: 500; text-transform: uppercase; letter-spacing: 0.03em; background: #fafafa; }
   .progress-bar { height: 6px; border-radius: 3px; background: #f0f0f0; overflow: hidden; margin-top: 4px; }
@@ -1413,7 +1413,7 @@ function renderReporte() {
     const ticketRows = grupo.tickets.length === 0
       ? `<div class="rep-empty">Sin tickets asignados</div>`
       : `<div class="rep-ticket-row rep-ticket-header">
-          <span>#</span><span>Dispositivo / Serial</span><span>Zona</span><span>Prioridad</span><span>Estado</span><span>Creado</span>
+          <span>#</span><span>Dispositivo / Serial</span><span>Descripción</span><span>Usuario</span><span>Zona</span><span>Prioridad</span><span>Estado</span><span>Creado</span>
         </div>` +
         grupo.tickets
           .sort((a,b) => {
@@ -1429,6 +1429,10 @@ function renderReporte() {
             return `<div class="rep-ticket-row">
               <span style="color:#aaa;">#${t.id}</span>
               <div><span style="font-weight:500;">${dev?dev.name:t.device_id}</span><br><span style="font-family:monospace; color:#aaa;">${dev?.serial||'—'}</span></div>
+              <div style="font-size:11px;color:#666;line-height:1.4;">${t.description||'—'}</div>
+              <div style="font-size:11px;color:#555;">${dev?.users||'—'}</div>
+              <div style="font-size:11px;color:#555;">${dev?.users||'—'}</div>
+              <div style="font-size:11px;color:#555;">${dev?.users||'—'}</div>
               <span style="color:#666;">${dev?.zona||'—'}</span>
               <span><span class="badge ${prioBadge}">${t.priority}</span></span>
               <span><span class="badge ${stBadge}">${t.status}</span></span>
@@ -1794,7 +1798,8 @@ async function saveTicketToSheets(t) {
     serial: dev?.serial || t.serial || '',
     name:   dev?.name   || t.name   || '',
     zona:   dev?.zona   || t.zona   || '',
-    api:    dev?.api    || t.api    || ''
+    api:    dev?.api    || t.api    || '',
+    users:  dev?.users  || t.users  || ''
   };
   const isUpdate = !!editingTicketId;
   try {
